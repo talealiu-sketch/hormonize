@@ -47,6 +47,8 @@ const QUESTIONS = [
   { id: 'carbs', type: 'single', q: 'When you eat a high-carb or sugary meal?', opts: ['I crash hard and feel foggy', 'I feel fine — no real reaction', 'I feel inflamed — bloated or achy', 'I feel anxious or jittery'] }
 ];
 
+const OPENROUTER_KEY = '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';
+
 function scorePCOS(answers, multi) {
   let s = { insulin: 0, adrenal: 0, inflammatory: 0, postpill: 0 };
   if (answers.weight === 0) s.insulin += 3;
@@ -155,20 +157,29 @@ export default function App() {
     setQuizStep('intro');
   }
 
-  async function callClaude(prompt, onSuccess, onError) {
+  async function callAI(prompt, onSuccess, onError) {
     const msgs = ['Analyzing your profile…', 'Building your personalized plan…', 'Syncing to your cycle phase…', 'Almost ready…'];
     let i = 0;
     setLoadingMsg(msgs[0]);
     const iv = setInterval(() => { i = (i + 1) % msgs.length; setLoadingMsg(msgs[i]); }, 2000);
     try {
-      const res = await fetch('/.netlify/functions/chat', {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_KEY}`,
+          'HTTP-Referer': 'https://serene-lollipop-8e8820.netlify.app',
+          'X-Title': 'Hormonize'
+        },
+        body: JSON.stringify({
+          model: 'anthropic/claude-sonnet-4-5',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: prompt }]
+        })
       });
       const data = await res.json();
       clearInterval(iv);
-      const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+      const text = data.choices[0].message.content;
       const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
       onSuccess(parsed);
     } catch (e) {
@@ -181,14 +192,14 @@ export default function App() {
     setMealScreen('loading');
     const { type, goal, phase: p, meals, restrictions, dislikes } = mealSetup;
     const prompt = `You are a registered dietitian specializing in PCOS. Generate a 7-day meal plan for: PCOS type: ${type}, Goal: ${goal}, Cycle phase: ${p}, Meals per day: ${meals}, Restrictions: ${restrictions.join(', ') || 'none'}, Avoid: ${dislikes || 'none'}. Return ONLY valid JSON no markdown: {"title":"","subtitle":"","phase_tip":"","daily_calories":0,"protein_g":0,"carbs_g":0,"fat_g":0,"days":[{"day":"Monday","meals":[{"type":"Breakfast","name":"","description":"2 sentences","tags":["","",""]}]}]}. 7 days Monday–Sunday. Every meal tailored to ${type} PCOS and ${p} phase.`;
-    await callClaude(prompt, (data) => { setMealPlan(data); setMealDay(0); setMealScreen('result'); }, () => setMealScreen('setup'));
+    await callAI(prompt, (data) => { setMealPlan(data); setMealDay(0); setMealScreen('result'); }, () => setMealScreen('setup'));
   }
 
   async function genWorkouts() {
     setWorkoutScreen('loading');
     const { type, phase: p, fitness, duration, goal, equipment } = workoutSetup;
     const prompt = `You are a certified personal trainer specializing in PCOS. Create a 7-day cycle-synced workout plan for: PCOS type: ${type}, Cycle phase: ${p}, Fitness: ${fitness}, Duration: ${duration}, Goal: ${goal}, Equipment: ${equipment.join(', ')}. Return ONLY valid JSON no markdown: {"title":"","subtitle":"","phase_tip":"","active_days":0,"rest_days":0,"avg_duration":"","days":[{"day":"Monday","is_rest":false,"workout_type":"","intensity":"low","name":"","description":"2 sentences","exercises":[{"name":"","sets_reps":""}],"duration_min":0,"cooldown":""}]}. 7 days Monday–Sunday. Rest days is_rest:true exercises:[]. Min 1-2 rest days.`;
-    await callClaude(prompt, (data) => { setWorkoutPlan(data); setWorkoutDay(0); setWorkoutScreen('result'); }, () => setWorkoutScreen('setup'));
+    await callAI(prompt, (data) => { setWorkoutPlan(data); setWorkoutDay(0); setWorkoutScreen('result'); }, () => setWorkoutScreen('setup'));
   }
 
   function saveLog() {
@@ -213,7 +224,6 @@ export default function App() {
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', background: '#FDF0F3', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* TOPBAR */}
       <div style={{ background: '#fff', borderBottom: '0.5px solid #F0B8C8', padding: '0 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ fontSize: 20, fontWeight: 500, color: '#C4687E', display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#C4687E' }} />
@@ -225,10 +235,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* PAGES */}
       <div style={{ padding: '1.25rem', paddingBottom: 90 }}>
 
-        {/* HOME */}
         {page === 'home' && (
           <div>
             <div style={{ background: 'linear-gradient(135deg,#FDF0F3,#F7D6DF)', border: '0.5px solid #F0B8C8', borderRadius: 20, padding: '1.75rem 1.5rem', marginBottom: '1.25rem', textAlign: 'center' }}>
@@ -260,7 +268,6 @@ export default function App() {
           </div>
         )}
 
-        {/* QUIZ */}
         {page === 'quiz' && (
           <div>
             {quizStep === 'intro' && (
@@ -327,7 +334,6 @@ export default function App() {
           </div>
         )}
 
-        {/* MEALS */}
         {page === 'meals' && (
           <div>
             {mealScreen === 'setup' && (
@@ -353,7 +359,7 @@ export default function App() {
                 <label style={{ fontSize: 13, fontWeight: 500, color: '#8B3A50', marginBottom: 5, display: 'block' }}>Foods to avoid</label>
                 <input type="text" value={mealSetup.dislikes} onChange={e => setMealSetup(prev => ({ ...prev, dislikes: e.target.value }))} placeholder="e.g. mushrooms, seafood…" style={{ width: '100%', padding: '11px 14px', border: '0.5px solid #F0B8C8', borderRadius: 12, fontSize: 14, marginBottom: '1rem' }} />
                 <button onClick={genMeals} style={{ width: '100%', padding: 13, background: '#C4687E', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 500, cursor: 'pointer' }}>Generate 7-day meal plan →</button>
-                <p style={{ fontSize: 12, color: '#C4687E', marginTop: 8, textAlign: 'center' }}>Powered by Claude AI</p>
+                <p style={{ fontSize: 12, color: '#C4687E', marginTop: 8, textAlign: 'center' }}>Powered by AI</p>
               </div>
             )}
             {mealScreen === 'loading' && (
@@ -399,7 +405,6 @@ export default function App() {
           </div>
         )}
 
-        {/* WORKOUTS */}
         {page === 'workouts' && (
           <div>
             {workoutScreen === 'setup' && (
@@ -423,7 +428,7 @@ export default function App() {
                   ))}
                 </div>
                 <button onClick={genWorkouts} style={{ width: '100%', padding: 13, background: '#C4687E', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 500, cursor: 'pointer' }}>Generate workout plan →</button>
-                <p style={{ fontSize: 12, color: '#C4687E', marginTop: 8, textAlign: 'center' }}>Powered by Claude AI</p>
+                <p style={{ fontSize: 12, color: '#C4687E', marginTop: 8, textAlign: 'center' }}>Powered by AI</p>
               </div>
             )}
             {workoutScreen === 'loading' && (
@@ -482,7 +487,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TRACKER */}
         {page === 'tracker' && (
           <div>
             <div style={{ fontSize: 19, fontWeight: 500, marginBottom: '0.25rem' }}>Daily tracker</div>
@@ -526,27 +530,26 @@ export default function App() {
           </div>
         )}
 
-        {/* SUBSCRIPTION */}
         {page === 'subscription' && (
           <div>
             <div style={{ textAlign: 'center', padding: '1.5rem 0 1rem' }}>
               <div style={{ fontSize: 40, color: '#C4687E', marginBottom: '0.75rem' }}>♛</div>
               <div style={{ fontSize: 22, fontWeight: 500, color: '#6B2438', marginBottom: '0.4rem' }}>Upgrade Hormonize</div>
-              <div style={{ fontSize: 14, color: '#8B3A50', lineHeight: 1.6, maxWidth: 380, margin: '0 auto 1.5rem' }}>Unlock your full hormonal wellness toolkit — unlimited AI plans, advanced tracking, and priority support.</div>
+              <div style={{ fontSize: 14, color: '#8B3A50', lineHeight: 1.6, maxWidth: 380, margin: '0 auto 1.5rem' }}>Unlock your full hormonal wellness toolkit.</div>
             </div>
             <div style={{ display: 'flex', background: '#F7D6DF', borderRadius: 20, padding: 3, marginBottom: '1.25rem', border: '0.5px solid #F0B8C8' }}>
               {[['monthly', 'Monthly'], ['annual', 'Annual — Save 40%']].map(([val, lbl]) => (
                 <button key={val} onClick={() => setBilling(val)} style={{ flex: 1, padding: 8, borderRadius: 17, border: billing === val ? '0.5px solid #F0B8C8' : 'none', background: billing === val ? '#fff' : 'none', fontSize: 13, cursor: 'pointer', color: '#6B2438', fontWeight: billing === val ? 500 : 400 }}>{lbl}</button>
               ))}
             </div>
-            {[{ key: 'free', name: 'Free', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: '1 meal plan/month' }, { y: true, t: '1 workout plan/month' }, { y: false, t: 'Daily symptom tracker' }, { y: false, t: 'Unlimited AI plans' }, { y: false, t: 'Push notifications' }], btn: 'Current plan', primary: false }, { key: 'basic', name: 'Basic', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: '4 meal plans/month' }, { y: true, t: '4 workout plans/month' }, { y: true, t: 'Daily symptom tracker' }, { y: false, t: 'Unlimited AI plans' }, { y: true, t: 'Push notifications' }], btn: 'Start free trial', primary: false }, { key: 'pro', name: 'Pro', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: 'Unlimited meal plans' }, { y: true, t: 'Unlimited workout plans' }, { y: true, t: 'Daily symptom tracker' }, { y: true, t: 'Unlimited AI plans' }, { y: true, t: 'Push notifications' }], btn: 'Upgrade to Pro', primary: true, popular: true }].map(t => (
+            {[{ key: 'free', name: 'Free', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: '1 meal plan/month' }, { y: false, t: 'Unlimited AI plans' }, { y: false, t: 'Daily symptom tracker' }], btn: 'Current plan', primary: false }, { key: 'basic', name: 'Basic', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: '4 meal plans/month' }, { y: true, t: 'Daily symptom tracker' }, { y: false, t: 'Unlimited AI plans' }], btn: 'Start free trial', primary: false }, { key: 'pro', name: 'Pro', features: [{ y: true, t: 'PCOS assessment' }, { y: true, t: 'Unlimited meal plans' }, { y: true, t: 'Daily symptom tracker' }, { y: true, t: 'Unlimited AI plans' }], btn: 'Upgrade to Pro', primary: true, popular: true }].map(t => (
               <div key={t.key} style={{ background: '#fff', border: t.primary ? '1.5px solid #C4687E' : '0.5px solid #F0B8C8', borderRadius: 16, padding: '1.25rem', marginBottom: 10, position: 'relative' }}>
                 {t.popular && <div style={{ position: 'absolute', top: 14, right: 14, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500, background: '#C4687E', color: '#fff' }}>Most popular</div>}
                 <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>{t.name}</div>
                 <div style={{ fontSize: 28, fontWeight: 500, color: '#C4687E' }}>${prices[billing][t.key].toFixed(2)}<span style={{ fontSize: 14, fontWeight: 400, color: '#888' }}>/mo</span></div>
                 <div style={{ fontSize: 12, color: '#aaa', marginBottom: '1rem' }}>{billing === 'annual' && t.key !== 'free' ? `Billed $${(prices[billing][t.key] * 12).toFixed(2)}/year` : 'Billed monthly'}</div>
                 <div style={{ marginBottom: '1.25rem' }}>{t.features.map((f, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: f.y ? '#111' : '#ccc', marginBottom: 7 }}><span style={{ color: f.y ? '#1D9E75' : '#ddd' }}>{f.y ? '✓' : '✗'}</span>{f.t}</div>)}</div>
-                <button onClick={() => { if (t.key !== 'free') { setPlan(t.key); alert(`${t.name} plan activated! (Demo)`); } }} style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 500, cursor: 'pointer', border: 'none', background: t.primary ? '#C4687E' : '#F7D6DF', color: t.primary ? '#fff' : '#6B2438' }}>{t.btn}</button>
+                <button onClick={() => { if (t.key !== 'free') { setPlan(t.key); alert(`${t.name} plan activated!`); } }} style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 500, cursor: 'pointer', border: 'none', background: t.primary ? '#C4687E' : '#F7D6DF', color: t.primary ? '#fff' : '#6B2438' }}>{t.btn}</button>
               </div>
             ))}
             <div style={{ background: '#F7D6DF', border: '0.5px solid #F0B8C8', borderRadius: 16, padding: '1.25rem', marginBottom: '1rem' }}>
@@ -567,7 +570,6 @@ export default function App() {
           </div>
         )}
 
-        {/* PROFILE */}
         {page === 'profile' && (
           <div>
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#F7D6DF', border: '2px solid #F0B8C8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 500, color: '#6B2438', margin: '0 auto 0.75rem' }}>{userName ? userName.charAt(0).toUpperCase() : '?'}</div>
@@ -590,7 +592,6 @@ export default function App() {
 
       </div>
 
-      {/* NAV BAR */}
       <div style={{ background: '#fff', borderTop: '0.5px solid #F0B8C8', display: 'flex', position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 680, zIndex: 20 }}>
         {[{ label: 'Home', p: 'home', icon: '⌂' }, { label: 'Assessment', p: 'quiz', icon: '♡' }, { label: 'Meals', p: 'meals', icon: '◎' }, { label: 'Workouts', p: 'workouts', icon: '↯' }, { label: 'Tracker', p: 'tracker', icon: '◈' }, { label: 'Upgrade', p: 'subscription', icon: '♛' }, { label: 'Profile', p: 'profile', icon: '◉' }].map(n => (
           <button key={n.p} onClick={() => goPage(n.p)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0 8px', border: 'none', background: 'none', gap: 3, cursor: 'pointer', color: page === n.p ? '#C4687E' : '#aaa' }}>
