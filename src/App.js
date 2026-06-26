@@ -227,7 +227,7 @@ export default function App() {
           'X-Title': 'Hormonize'
         },
         body: JSON.stringify({
-          model: 'mistralai/mistral-7b-instruct',
+          model: 'mistralai/mistral-nemo',
           max_tokens: 4000,
           messages: [{ role: 'user', content: prompt }]
         })
