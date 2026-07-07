@@ -117,7 +117,7 @@ export default function App() {
   const [workoutDay, setWorkoutDay] = useState(0);
   const [logs, setLogs] = useState([]);
   const [todayLog, setTodayLog] = useState({ mood: '', energy: 5, bloating: 3, symptoms: [], notes: '' });
-  const [plan, setPlan] = useState('free');
+  const [plan] = useState('free'); // eslint-disable-line
   const [billing, setBilling] = useState('monthly');
   const [subCount, setSubCount] = useState(500);
   const [proPct, setProPct] = useState(60);
