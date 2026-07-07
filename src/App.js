@@ -261,7 +261,21 @@ export default function App() {
     setTodayLog({ mood: '', energy: 5, bloating: 3, symptoms: [], notes: '' });
     alert("Today's log saved!");
   }
-
+async function handleUpgrade(planKey) {
+  const { PRICES } = await import('./stripe');
+  const priceId = planKey === 'pro' ? PRICES.pro_monthly : PRICES.basic_monthly;
+  try {
+    const res = await fetch('/.netlify/functions/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId, userId: user?.id })
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  } catch (e) {
+    alert('Something went wrong. Please try again.');
+  }
+}
   function calcRevenue() {
     const pm = prices[billing];
     const proUsers = Math.round(subCount * proPct / 100);
@@ -652,7 +666,7 @@ export default function App() {
                 <div style={{ fontSize: 30, fontWeight: 700, color: pk }}>${prices[billing][t.key].toFixed(2)}<span style={{ fontSize: 15, fontWeight: 400, color: '#888' }}>/mo</span></div>
                 <div style={{ fontSize: 12, color: '#aaa', marginBottom: '1.25rem' }}>{billing === 'annual' && t.key !== 'free' ? `Billed $${(prices[billing][t.key] * 12).toFixed(2)}/year` : 'Billed monthly'}</div>
                 <div style={{ marginBottom: '1.25rem' }}>{t.features.map((f, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: f.y ? '#111' : '#ccc', marginBottom: 8 }}><span style={{ fontSize: 16 }}>{f.y ? '✅' : '⭕'}</span>{f.t}</div>)}</div>
-                <button onClick={() => { if (t.key !== 'free') { setPlan(t.key); alert(`${t.name} plan activated!`); } }} style={{ width: '100%', padding: 13, borderRadius: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: t.primary ? pk : pkm, color: t.primary ? '#fff' : pkd, fontFamily: 'inherit' }}>{t.btn}</button>
+                <button onClick={() => { if (t.key !== 'free') handleUpgrade(t.key); }} style={{ width: '100%', padding: 13, borderRadius: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: t.primary ? pk : pkm, color: t.primary ? '#fff' : pkd, fontFamily: 'inherit' }}>{t.btn}</button>
               </div>
             ))}
             <div style={{ background: pkm, border: `0.5px solid ${pkb}`, borderRadius: 20, padding: '1.5rem', marginBottom: '1rem' }}>
